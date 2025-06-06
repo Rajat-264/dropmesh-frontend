@@ -127,28 +127,27 @@ const Send = () => {
 
       channel.onopen = () => {
         setStatus(`Sending ${file.name}...`);
-        const chunkSize = 16 * 1024; // 16KB chunks
+        const chunkSize = 256 * 1024; // 256KB chunks
         const reader = new FileReader();
         let offset = 0;
 
         reader.onload = (e) => {
           const sendChunk = () => {
-            if (offset >= e.target.result.byteLength) {
-              channel.close();
-              return;
-            }
-
-            const chunk = e.target.result.slice(offset, offset + chunkSize);
-            channel.send(chunk);
-            offset += chunkSize;
-
-            const progress = Math.round((offset / e.target.result.byteLength) * 100);
-            setTransferProgress(progress);
-
-            if (offset < e.target.result.byteLength) {
-              setTimeout(sendChunk, 0); // Prevent UI blocking
-            }
-          };
+  while (offset < e.target.result.byteLength) {
+    if (channel.bufferedAmount > 4 * chunkSize) {
+      setTimeout(sendChunk, 10); // Wait for buffer to drain
+      return;
+    }
+    const chunk = e.target.result.slice(offset, offset + chunkSize);
+    channel.send(chunk);
+    offset += chunkSize;
+    const progress = Math.round((offset / e.target.result.byteLength) * 100);
+    setTransferProgress(progress);
+  }
+  if (offset >= e.target.result.byteLength) {
+    channel.close();
+  }
+};
 
           sendChunk();
         };
@@ -192,7 +191,7 @@ const Send = () => {
       
       <div className="status-section">
         <p className="status-label">Status: {status}</p>
-        {transferProgress > 0 && transferProgress < 100 && (
+        {(transferProgress >= 0 && transferProgress < 100 && file && selectedDeviceId) && (
           <div className="progress-bar-bg">
             <div
               className="progress-bar-fill"
