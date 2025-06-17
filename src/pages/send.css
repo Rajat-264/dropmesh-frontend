@@ -18,10 +18,17 @@
     align-items: center;
 }
 
+.username-input {
+  margin: 30px 0;
+  border: 2px solid black;
+  border-radius: 15px;
+}
+
 .send-title {
   font-size: 2rem;
   font-weight: bold;
   margin-bottom: 1.5rem;
+  padding: 10px 20px;
 }
 
 .status-section {
