@@ -10,7 +10,6 @@ const Send = () => {
   const [file, setFile] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(null);
-  const [networkInfo, setNetworkInfo] = useState(null);
   const [transferProgress, setTransferProgress] = useState(0);
   const [status, setStatus] = useState('Ready to send');
 
@@ -21,12 +20,11 @@ const Send = () => {
   useEffect(() => {
     const initialize = async () => {
       try {
-        const baseUrl = window.location.origin.replace(':5173', ':3000');
-        const res = await fetch(`${baseUrl}/api/network-info`);
+        const backendUrl = import.meta.env.VITE_SERVER_URL; 
+        const res = await fetch(`${backendUrl}/api/network-info`);
         const data = await res.json();
-        setNetworkInfo(data);
 
-        const socket = io(baseUrl, {
+        const socket = io(backendUrl, {
           reconnectionAttempts: 5,
           withCredentials: true
         });
@@ -43,7 +41,14 @@ const Send = () => {
         socket.on('file-request', async ({ fromDeviceId, fileName, fileSize, offer }) => {
           setStatus(`Incoming file: ${fileName}`);
           const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              {
+                urls: 'elay1.expressturn.com:3480',
+                username: '000000002065517165',
+                credential: 'ylaVjFtCwUP3O/vnBRsTa+mUpkY='
+              }
+            ]
           });
           pcRef.current = pc;
 
@@ -117,7 +122,14 @@ const Send = () => {
 
     setStatus('Initializing connection...');
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        {
+          urls: 'turn:your-turn-server.com:3478',
+          username: 'your-user',
+          credential: 'your-password'
+        }
+      ]
     });
     pcRef.current = pc;
 
@@ -224,22 +236,16 @@ const Send = () => {
 
         <div className="container2">
           <div className="qr-section">
-            {networkInfo ? (
-              <>
-                <div className="qr-image">
-                  <QRCode
-                    value={`http://${networkInfo.ip}:5173`}
-                    size={200}
-                    level="H"
-                  />
-                </div>
-                <p className="qr-hint">
-                  Scan this on mobile device<br />to open DropMesh
-                </p>
-              </>
-            ) : (
-              <p>Loading QR code...</p>
-            )}
+            <div className="qr-image">
+              <QRCode
+                value={window.location.origin} 
+                size={200}
+                level="H"
+              />
+            </div>
+            <p className="qr-hint">
+              Scan this on mobile device<br />to open DropMesh
+            </p>
           </div>
 
           <button

@@ -1,4 +1,3 @@
-import Receive from './pages/Receive';
 import React from 'react';
 import Send from './pages/Send';
 import './App.css';
@@ -12,7 +11,6 @@ function App() {
       <Navbar />
         <Routes>
           <Route path="/" element={<Send />} />
-          <Route path="/receive" element={<Receive />} />
         </Routes>
     </Router>
   )

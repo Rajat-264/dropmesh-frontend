@@ -9,7 +9,6 @@ const Navbar = () => {
       </div>
       <div className="nav-links">
         <Link to="/" style={{textDecoration:"none"}} className="link">Home/Send</Link>
-        <Link to="/receive" style={{textDecoration:"none"}} className="link">Receive</Link> 
         <Link to="/about" style={{textDecoration:"none"}} className="link">About</Link>    
       </div>
     </div>
