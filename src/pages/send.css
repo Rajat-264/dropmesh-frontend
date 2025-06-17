@@ -21,7 +21,9 @@
 .username-input {
   margin: 30px 0;
   border: 2px solid black;
-  border-radius: 15px;
+  border-radius: 5px;
+  padding: 10px 20px;
+  background-color: #c6c6c6;
 }
 
 .send-title {
