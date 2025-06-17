@@ -6,7 +6,7 @@ import './send.css';
 
 const Send = () => {
   const [deviceId] = useState(`device-${uuidv4()}`);
-  const [username] = useState('Sender');
+  const [username, setUsername] = useState(() => localStorage.getItem('dropmesh-username') || '');
   const [file, setFile] = useState(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(null);
@@ -17,16 +17,24 @@ const Send = () => {
   const socketRef = useRef(null);
   const dataChannelRef = useRef(null);
 
+  // Save username to localStorage
   useEffect(() => {
+    if (username) localStorage.setItem('dropmesh-username', username);
+  }, [username]);
+
+  // Only initialize socket if username is set
+  useEffect(() => {
+    if (!username) return;
+
     const initialize = async () => {
       try {
-        const backendUrl = import.meta.env.VITE_SERVER_URL; 
+        const backendUrl = import.meta.env.VITE_SERVER_URL;
         const res = await fetch(`${backendUrl}/api/network-info`);
-        const data = await res.json();
+        await res.json();
 
         const socket = io(backendUrl, {
           reconnectionAttempts: 5,
-          withCredentials: true
+          withCredentials: true,
         });
         socketRef.current = socket;
 
@@ -34,7 +42,7 @@ const Send = () => {
         socket.emit('get-devices');
 
         socket.on('active-devices', (deviceList) => {
-          const filtered = deviceList.filter(d => d.deviceId !== deviceId);
+          const filtered = deviceList.filter((d) => d.deviceId !== deviceId);
           setDevices(filtered);
         });
 
@@ -46,30 +54,32 @@ const Send = () => {
               {
                 urls: 'turn:relay1.expressturn.com:3480',
                 username: '000000002065517165',
-                credential: 'ylaVjFtCwUP3O/vnBRsTa+mUpkY='
-              }
-            ]
+                credential: 'ylaVjFtCwUP3O/vnBRsTa+mUpkY=',
+              },
+            ],
           });
           pcRef.current = pc;
 
           pc.ondatachannel = (event) => {
             const channel = event.channel;
             const receivedChunks = [];
+            let receivedSize = 0;
             channel.binaryType = 'arraybuffer';
 
             channel.onmessage = (e) => {
               receivedChunks.push(e.data);
-              const total = receivedChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
-              const percent = Math.round((total / fileSize) * 100);
+              receivedSize += e.data.byteLength;
+              const percent = Math.min(100, Math.round((receivedSize / fileSize) * 100));
               setTransferProgress(percent);
 
-              if (total >= fileSize) {
+              if (receivedSize >= fileSize) {
                 const blob = new Blob(receivedChunks);
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = fileName;
                 link.click();
                 setStatus('File received');
+                channel.close();
               }
             };
           };
@@ -78,7 +88,7 @@ const Send = () => {
             if (event.candidate) {
               socket.emit('ice-candidate', {
                 toDeviceId: fromDeviceId,
-                candidate: event.candidate
+                candidate: event.candidate,
               });
             }
           };
@@ -89,7 +99,7 @@ const Send = () => {
 
           socket.emit('file-accepted', {
             toDeviceId: fromDeviceId,
-            answer
+            answer,
           });
         });
 
@@ -115,21 +125,23 @@ const Send = () => {
       socketRef.current?.disconnect();
       if (pcRef.current) pcRef.current.close();
     };
-  }, [deviceId]);
+  }, [username]);
 
   const handleSendFile = async () => {
     if (!file || !selectedDeviceId) return;
 
     setStatus('Initializing connection...');
+    setTransferProgress(0);
+
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         {
-          urls: 'turn:your-turn-server.com:3478',
-          username: 'your-user',
-          credential: 'your-password'
-        }
-      ]
+                urls: 'turn:relay1.expressturn.com:3480',
+                username: '000000002065517165',
+                credential: 'ylaVjFtCwUP3O/vnBRsTa+mUpkY='
+        },
+      ],
     });
     pcRef.current = pc;
 
@@ -140,7 +152,7 @@ const Send = () => {
       if (event.candidate) {
         socketRef.current.emit('ice-candidate', {
           toDeviceId: selectedDeviceId,
-          candidate: event.candidate
+          candidate: event.candidate,
         });
       }
     };
@@ -148,10 +160,11 @@ const Send = () => {
     channel.onopen = () => {
       const chunkSize = 256 * 1024;
       const reader = new FileReader();
-      let offset = 0;
 
       reader.onload = (e) => {
         const buffer = e.target.result;
+        let offset = 0;
+
         const sendChunk = () => {
           while (offset < buffer.byteLength) {
             if (channel.bufferedAmount > 4 * chunkSize) {
@@ -161,14 +174,16 @@ const Send = () => {
             const chunk = buffer.slice(offset, offset + chunkSize);
             channel.send(chunk);
             offset += chunkSize;
-            const progress = Math.round((offset / buffer.byteLength) * 100);
+            const progress = Math.min(100, Math.round((offset / buffer.byteLength) * 100));
             setTransferProgress(progress);
           }
+
           if (offset >= buffer.byteLength) {
             channel.close();
             setStatus('File transfer complete');
           }
         };
+
         sendChunk();
       };
 
@@ -183,7 +198,7 @@ const Send = () => {
       fromDeviceId: deviceId,
       fileName: file.name,
       fileSize: file.size,
-      offer
+      offer,
     });
   };
 
@@ -192,6 +207,13 @@ const Send = () => {
       <div className="containers">
         <div className="container1">
           <h1 className="send-title">DropMesh Sender</h1>
+          <input
+            type="text"
+            placeholder="Enter your name"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="username-input"
+          />
           <div className="status-section">
             <p className="status-label">Status: {status}</p>
             {transferProgress > 0 && (
@@ -225,7 +247,7 @@ const Send = () => {
                       className={`device-btn${selectedDeviceId === dev.deviceId ? ' selected' : ''}`}
                       onClick={() => setSelectedDeviceId(dev.deviceId)}
                     >
-                      {dev.username} ({dev.deviceId.startsWith('mobile') ? 'Mobile' : 'Desktop'})
+                      {dev.username || 'Unnamed'} ({dev.deviceId.startsWith('mobile') ? 'Mobile' : 'Desktop'})
                     </button>
                   </li>
                 ))}
@@ -237,14 +259,12 @@ const Send = () => {
         <div className="container2">
           <div className="qr-section">
             <div className="qr-image">
-              <QRCode
-                value={window.location.origin} 
-                size={200}
-                level="H"
-              />
+              <QRCode value={window.location.origin} size={200} level="H" />
             </div>
             <p className="qr-hint">
-              Scan this on mobile device<br />to open DropMesh
+              Scan this on mobile device
+              <br />
+              to open DropMesh
             </p>
           </div>
 
